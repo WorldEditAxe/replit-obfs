@@ -1,0 +1,23 @@
+{
+  "name": "replit-obfs",
+  "version": "1.0.0",
+  "description": "Hides code from repl.it repls",
+  "main": "index.js",
+  "scripts": {
+    "test": "tsc && node /dist/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/WorldEditAxe/replit-obfs.git"
+  },
+  "author": "WorldEditAxe",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/WorldEditAxe/replit-obfs/issues"
+  },
+  "homepage": "https://github.com/WorldEditAxe/replit-obfs#readme",
+  "devDependencies": {
+    "@types/node": "^17.0.5"
+  },
+   "type": "module"
+}
