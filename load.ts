@@ -1,6 +1,6 @@
-import { exec, execSync, spawn } from "child_process"
+import { execSync, spawn } from "child_process"
 import { randomUUID } from "crypto"
-import { accessSync, mkdirSync } from "fs"
+import { accessSync, existsSync, mkdirSync } from "fs"
 import * as fs from "fs/promises"
 import * as os from "os"
 import path from "path"
@@ -30,9 +30,11 @@ export async function run() {
     // run now lol
     process.chdir(tmpPath)
 
-    console.log(`> npm i`)
     try {
-        execSync("npm i")
+        if (existsSync("./package.json")) {
+            console.log(`> npm i`)
+            execSync("npm i")
+        }
     } catch {
         console.error("Failed to install npm dependencies!")
     }

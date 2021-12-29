@@ -27,7 +27,7 @@ export async function run() {
 
     console.log("Reading source files...")
     const files = await getFiles("./code_src").catch(async (err) => {
-        console.error("Cannot find folder code.src - does it exist and that node.js can access the folder?")
+        console.error("Cannot find folder code_src - does it exist and that node.js can access the folder?")
         console.error(`${err.stack}`)
 
         try { await fs.access('./code_src') }
