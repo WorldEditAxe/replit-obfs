@@ -28,7 +28,7 @@ export async function run() {
     }
 
     // run now lol
-    process.chdir(tmpPath + "/code_src")
+    process.chdir(tmpPath)
 
     console.log(`> npm i`)
     try {
