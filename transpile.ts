@@ -13,7 +13,7 @@ export async function run() {
     }
 
     function toEnvPath(path: string): string {
-        return ("_embCode|" + relative(resolve("./"), path))
+        return ("_023kde||" + relative(resolve("./"), path))
     }
 
     async function getFiles(dir: string): Promise<string[]> {

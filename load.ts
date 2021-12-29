@@ -1,5 +1,6 @@
 import { exec, execSync, spawn } from "child_process"
 import { randomUUID } from "crypto"
+import { accessSync, mkdirSync } from "fs"
 import * as fs from "fs/promises"
 import * as os from "os"
 import path from "path"
@@ -8,29 +9,33 @@ export async function run() {
     // load from env
     const fileStructure = {}
     const tmpPath = os.tmpdir() + "/container-" + randomUUID()
-    // await mkdir(tmpPath)
+    await fs.mkdir(tmpPath)
 
     for (const element of Object.entries(process.env)) {
         // [0] = name, [1] = contents
 
         let name = element[0], content = element[1]
 
-        if (name.startsWith("_embCode|")) {
-            name = name.replace("_embCode|", "")
+        if (name.startsWith("_023kde|")) {
+            name = name.replace("_023kde|", "")
             content = decode(content)
-            const folders = name.substring(1).split(path.sep)
+            const folders = name.startsWith(".") ? name.substring(1).split(path.sep) : name.split(path.sep)
 
             // does this even work lol
-            folders.forEach(async (v, i) => { if (folders.length < i && !await folderExists(tmpPath + arrayToFilepath(folders, i, true))) { await fs.mkdir(tmpPath + arrayToFilepath(folders, i, true)) } })
-            await fs.writeFile(tmpPath + arrayToFilepath(folders, folders.length, true), content)
+            folders.forEach((v, i) => { if (folders.length > i && !folderExists(tmpPath + arrayToFilepath(folders, i, true))) { mkdirSync(tmpPath + arrayToFilepath(folders, i, true)) } })
+            await fs.writeFile(tmpPath + arrayToFilepath(folders, folders.length, true).slice(0, -1), content)
         }
     }
 
     // run now lol
-    process.chdir(tmpPath)
+    process.chdir(tmpPath + "/code_src")
 
     console.log(`> npm i`)
-    execSync("npm i")
+    try {
+        execSync("npm i")
+    } catch {
+        console.error("Failed to install npm dependencies!")
+    }
 
     console.log(`> node index.js`)
     const proc = spawn("node", ["index.js"])
@@ -43,7 +48,7 @@ export async function run() {
         await fs.rm(tmpPath, { force: true, recursive: true })
         process.exit(code)
     })
-    proc.on('close', (code, signal) => { if (code == 0) { console.log(`Process ended with code ${code} and signal ${signal}.`) } else { console.error(`Process ended with code ${code} and signal ${signal}.`) } })
+    proc.on('close', (code, signal) => { if (code == 0) { console.log(`Process ended with code ${code} ${signal ? `and signal ${signal},` : ""}`) } else { console.error(`Process ended with code ${code} ${signal ? `and signal ${signal},` : ""}`) } })
 }
 
 function decode(code: string): string {
@@ -54,8 +59,8 @@ function decode(code: string): string {
         .replace(new RegExp('/+ie2', 'g'), "\t")
 }
 
-async function folderExists(path: string): Promise<boolean> {
-    try { await fs.access(path) }
+function folderExists(path: string): boolean {
+    try { accessSync(path) }
     catch { return false }
     return true
 }
