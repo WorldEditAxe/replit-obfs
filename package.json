@@ -11,7 +11,7 @@
     "url": "git+https://github.com/WorldEditAxe/replit-obfs.git"
   },
   "author": "WorldEditAxe",
-  "license": "ISC",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/WorldEditAxe/replit-obfs/issues"
   },

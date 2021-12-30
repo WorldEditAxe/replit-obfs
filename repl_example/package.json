@@ -7,5 +7,5 @@
     "test": "node index.js run"
   },
   "author": "Your Name",
-  "license": "ISC"
+  "license": "MIT"
 }
