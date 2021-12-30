@@ -26,12 +26,12 @@ export async function run() {
 
         if (name.startsWith("_023kde|")) {
             name = name.replace("_023kde|", "")
-            content = decode(content)
+            const content_ = decode(content)
             const folders = name.startsWith(".") ? name.substring(1).split(path.sep) : name.split(path.sep)
 
             // does this even work lol
             folders.forEach((v, i) => { if (folders.length > i && !folderExists(tmpPath + arrayToFilepath(folders, i, true))) { mkdirSync(tmpPath + arrayToFilepath(folders, i, true)) } })
-            await fs.writeFile(tmpPath + arrayToFilepath(folders, folders.length, true).slice(0, -1), content)
+            await fs.writeFile(tmpPath + arrayToFilepath(folders, folders.length, true).slice(0, -1), content_)
         }
     }
 
@@ -70,10 +70,11 @@ export async function run() {
 
 function decode(code: string): string {
     return code
-        .replace(new RegExp('/+w2', 'g'), "\n")
-        .replace(new RegExp("/+wg", 'g'), "\\n")
-        .replace(new RegExp("/+1ef", 'g'), "\"")
-        .replace(new RegExp('/+ie2', 'g'), "\t")
+        .replace(new RegExp('__32wdcj', 'g'), "\n")
+        .replace(new RegExp("__wefn32", 'g'), "\\n")
+        .replace(new RegExp("__f329ujn", 'g'), "\"")
+        .replace(new RegExp('__wre3d', 'g'), "\t")
+        .replace(new RegExp('__wefewf', 'g'), "\\")
 }
 
 function folderExists(path: string): boolean {

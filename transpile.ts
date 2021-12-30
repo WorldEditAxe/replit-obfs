@@ -13,7 +13,7 @@ export async function run() {
     }
 
     function safeConvertCode(code: string): string {
-        return code.replace(new RegExp("\\n", 'g'), "/+w2").replace(new RegExp(/\\n/, 'g'), "/+wg").replace(new RegExp(/"/, 'g'), "/+1ef").replace(new RegExp(/\t/, 'g'), "/+ie2")
+        return code.replace(new RegExp("\\n", 'g'), "__32wdcj").replace(new RegExp(/\\n/, 'g'), "__wefn32").replace(new RegExp(/"/, 'g'), "__f329ujn").replace(new RegExp(/\t/, 'g'), "__wre3d").replace(new RegExp(/\\/, 'g'), "__wefewf")
     }
 
     function toEnvPath(path: string): string {
