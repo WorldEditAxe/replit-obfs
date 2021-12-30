@@ -9,6 +9,14 @@ export async function run() {
     // load from env
     const fileStructure = {}
     const tmpPath = os.tmpdir() + "/container-" + randomUUID()
+    let startCmd = process.env["_startCommand|"] || undefined
+
+    if (startCmd) startCmd = startCmd.replace("_startCommand|", "")
+    else {
+        console.log("No start command detected - defaulting to default node.js start command!")
+        startCmd = "node index.js"
+    }
+
     await fs.mkdir(tmpPath)
 
     for (const element of Object.entries(process.env)) {
@@ -35,12 +43,19 @@ export async function run() {
             console.log(`> npm i`)
             execSync("npm i")
         }
-    } catch {
-        console.error("Failed to install npm dependencies!")
-    }
+    } catch { console.log("[!] Failed to install node.js dependencies!") }
 
-    console.log(`> node index.js`)
-    const proc = spawn("node", ["index.js"])
+    try {
+        if (existsSync("./requirements.txt")) {
+            console.log("> pip3 install -r requirements.txt")
+            execSync("pip3 install -r requirements.txt")
+        }
+    } catch { console.log("[!] Failed to install Python dependencies!") }
+
+    console.log(`> ${startCmd}`)
+    const proc = spawn(startCmd, { shell: true })
+
+
 
     proc.stdout.on('data', data => process.stdout.write(data))
     proc.stderr.on('data', data => process.stderr.write(data))
@@ -50,7 +65,7 @@ export async function run() {
         await fs.rm(tmpPath, { force: true, recursive: true })
         process.exit(code)
     })
-    proc.on('close', (code, signal) => { if (code == 0) { console.log(`Process ended with code ${code} ${signal ? `and signal ${signal},` : ""}`) } else { console.error(`Process ended with code ${code} ${signal ? `and signal ${signal},` : ""}`) } })
+    proc.on('close', (code, signal) => { if (code == 0) { console.log(`[i] Process ended with code ${code} ${signal ? `and signal ${signal},` : ""}`) } else { console.error(`[!] Process ended with code ${code} ${signal ? `and signal ${signal},` : ""}`) } })
 }
 
 function decode(code: string): string {

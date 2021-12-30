@@ -1,11 +1,15 @@
 import * as fs from "node:fs/promises"
+import { createInterface } from "node:readline"
 import { resolve, relative } from "path"
 
 export async function run() {
     const readPath = "./src/"
 
-    async function toEnv(filePath: string, files: {}) {
-        await fs.writeFile(filePath, JSON.stringify(files))
+    async function toEnv(filePath: string, files: {}, data: {}) {
+        const writeJson = { ...files }
+        writeJson[" _startCommand|"] = data["command"]
+        
+        await fs.writeFile(filePath, JSON.stringify(writeJson))
     }
 
     function safeConvertCode(code: string): string {
@@ -13,7 +17,7 @@ export async function run() {
     }
 
     function toEnvPath(path: string): string {
-        return ("_023kde||" + relative(resolve("./code_src"), path))
+        return ("_023kde|" + relative(resolve("./code_src"), path))
     }
 
     async function getFiles(dir: string): Promise<string[]> {
@@ -24,6 +28,8 @@ export async function run() {
         }))
         return Array.prototype.concat(...files)
     }
+
+    const data = await getTranspilationData()
 
     console.log("Reading source files...")
     const files = await getFiles("./code_src").catch(async (err) => {
@@ -66,8 +72,26 @@ export async function run() {
     }
 
     console.log("Saving .env JSON contents to disk...")
-    await toEnv("./env.out", encodedFiles).catch((err) => {
+    await toEnv("./env.out", encodedFiles, data).catch((err) => {
         console.error(`Failed to write to disk! | ${err.stack}`)
     })
-    console.log("Done processing files!")
+    console.log("Done processing files! Your exported JSON file is at env.out.")
+    process.exit(0)
+}
+
+function getTranspilationData(): Promise<{}> {
+    const rl = createInterface({ input: process.stdin, output: process.stdout })
+    
+    const promise = new Promise<{}>(res => {
+        const retData = {}
+        
+        rl.question("Alrighty, let's set up your project. What command should I run to start your project?\n> ", cmd => {
+            retData["command"] = cmd
+            console.log("Gimme a second and I'll transpile your project!")
+
+            res(retData)
+        })
+    })
+
+    return promise
 }
