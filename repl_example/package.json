@@ -4,8 +4,9 @@
   "description": "Code for my repl",
   "main": "index.js",
   "scripts": {
-    "test": "node index.js run"
+    "test": "node index.js"
   },
   "author": "Your Name",
-  "license": "MIT"
+  "license": "MIT",
+  "type": "module"
 }

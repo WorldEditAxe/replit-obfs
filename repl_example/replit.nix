@@ -1,6 +1,7 @@
 { pkgs }: {
 	deps = [
     pkgs.nodejs-16_x
-    pkgs.python38 # python support
+    # uncomment next line for python 3 support
+    # pkgs.python38
 	];
 }

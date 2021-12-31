@@ -8,7 +8,7 @@ export async function run() {
     async function toEnv(filePath: string, files: {}, data: {}) {
         const writeJson = { ...files }
         writeJson[" _startCommand|"] = data["command"]
-        
+
         await fs.writeFile(filePath, JSON.stringify(writeJson))
     }
 
@@ -55,12 +55,26 @@ export async function run() {
 
             if (!encodedFiles[serializedPath]) {
                 console.debug(`Processing ${file}...`)
-                const contents = safeConvertCode(textDecoder.decode((await fs.readFile(file))))
 
-                if (contents.length <= 32767) {
-                    encodedFiles[serializedPath] = contents
+                // add env files to json file
+                if (serializedPath.replace('_023kde|', '') == ".env") {
+                    console.log("Detected dotenv file, loading...")
+                    const envs = Object.entries(parseEnv(textDecoder.decode(await fs.readFile('./code_src/.env')), {}))
+
+                    for (const env of envs) {
+                        // [0] = key, [1] = value
+                        encodedFiles[env[0]] = env[1]
+                    }
+
+                    console.log(`JSON-ized ${envs.length} environment variable${envs.length == 1 ? '' : "s"}.`)
                 } else {
-                    console.error(`Encoded file ${file} contents are over length limit of 32767 - skipping!`)
+                    const contents = safeConvertCode(textDecoder.decode((await fs.readFile(file))))
+
+                    if (contents.length <= 32767) {
+                        encodedFiles[serializedPath] = contents
+                    } else {
+                        console.error(`Encoded file ${file} contents are over length limit of 32767 - skipping!`)
+                    }
                 }
             } else {
                 console.error(`Detected file name ambiguity - skipping file processing of ${file}!`)
@@ -81,17 +95,60 @@ export async function run() {
 
 function getTranspilationData(): Promise<{}> {
     const rl = createInterface({ input: process.stdin, output: process.stdout })
-    
+
     const promise = new Promise<{}>(res => {
         const retData = {}
-        
+
         rl.question("Alrighty, let's set up your project. What command should I run to start your project?\n> ", cmd => {
             retData["command"] = cmd
-            console.log("Gimme a second and I'll transpile your project!")
+            console.log("Transpiling project...")
 
             res(retData)
         })
     })
 
     return promise
+}
+
+// pulled code from dotenv
+const NEWLINE = '\n'
+const RE_INI_KEY_VAL = /^\s*([\w.-]+)\s*=\s*(.*)?\s*$/
+const RE_NEWLINES = /\\n/g
+const NEWLINES_MATCH = /\r\n|\n|\r/
+
+function parseEnv(src /*: string | Buffer */, options /*: ?DotenvParseOptions */) /*: DotenvParseOutput */ {
+    const debug = Boolean(options && options.debug)
+    const obj = {}
+
+    // convert Buffers before splitting into lines and processing
+    src.toString().split(NEWLINES_MATCH).forEach(function (line, idx) {
+        // matching "KEY' and 'VAL' in 'KEY=VAL'
+        const keyValueArr = line.match(RE_INI_KEY_VAL)
+        // matched?
+        if (keyValueArr != null) {
+            const key = keyValueArr[1]
+            // default undefined or missing values to empty string
+            let val = (keyValueArr[2] || '')
+            const end = val.length - 1
+            const isDoubleQuoted = val[0] === '"' && val[end] === '"'
+            const isSingleQuoted = val[0] === "'" && val[end] === "'"
+
+            // if single or double quoted, remove quotes
+            if (isSingleQuoted || isDoubleQuoted) {
+                val = val.substring(1, end)
+
+                // if double quoted, expand newlines
+                if (isDoubleQuoted) {
+                    val = val.replace(RE_NEWLINES, NEWLINE)
+                }
+            } else {
+                // remove surrounding whitespace
+                val = val.trim()
+            }
+
+            obj[key] = val
+        }
+    })
+
+    return obj
 }
