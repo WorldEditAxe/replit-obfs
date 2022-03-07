@@ -1,6 +1,6 @@
 {
   "name": "replit-obfs",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Hides code from repl.it repls",
   "main": "index.js",
   "scripts": {
@@ -19,5 +19,9 @@
   "devDependencies": {
     "@types/node": "^17.0.5"
   },
-   "type": "module"
+  "type": "module",
+  "dependencies": {
+    "@types/unzip": "^0.1.1",
+    "extract-zip": "^2.0.1"
+  }
 }
