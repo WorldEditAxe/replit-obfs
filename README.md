@@ -1,9 +1,16 @@
 # repl.it Code Hider
-This node.js project locks down project access for everyone except the repl owner for free using environment variables.  
-**Note: This will only work for files saved using the UTF-8 encoding. Additionally, there is a hard limit of 32767 characters per processed file!**  
-These only apply to the non-GitHub versions of the obfuscator. 
+A dependency-free Node.js project aimed at being an alternative to the paid Hacker Plan available on repl.it.  
+**Limitations to the original version do apply - check the below for more information!**
+
+# Limitations
+- This project is made specifically for repl.it repls. In theory, this should work on any machine and OS with support for node.js and git but your milage may vary.
+- On-server/embedded databases (i.e. SQLite) do work, but data will not retain between relaunches. Check out [MongoDB Atlas](https://www.mongodb.com/cloud-1) for free database hosting.
+- Slower startup times due to having to clone (GitHub)/unpack file data stored in environment variables (original) and dependency installing (if possible). 
+- GitHub method only: Download speed may vary depending on repository size.
+- Original method only: Buggy, only UTF-8 files allowed, buggy for large files, and adds clunk through packager app.
 
 # Getting Started (GitHub)
+The GitHub method of code hiding is a LOT better. It's a lot easier to get up and running, and also easier to run code.
 ## Preparation/Prerequisites
 You are required to have two things in order to get started: a GitHub account, a GitHub repository, and a Github Access token. Look up how to get those prior to starting.
 ## Running your Code
@@ -12,8 +19,8 @@ You are required to have two things in order to get started: a GitHub account, a
    - `REPO` - The repository of the private project (i.e. `username/repo`)  
    - `ACCESS_TOKEN` - The access token of the project  
 3. Start the repl
-4. (Optional) Set up a web pinging service to ping your repl every 5-10 min or so. 
-   - A reliable, free pinging service is https://uptimerobot.com/.
+4. (Optional) Set up a web pinging service to ping your repl every 5-10 min or so. The obfusticator already comes with a built-in webserver,
+   - A reliable, free pinging service is [Uptime Robot](https://uptimerobot.com/).
 
 # Getting started
 The software does not have any dependencies apart from node.js ofc :v
