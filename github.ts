@@ -4,7 +4,88 @@ import { access, mkdir, readFile, rm } from "fs/promises"
 import { tmpdir } from "os"
 import { createServer } from "http"
 
-const l = (msg, type?) => console.log(`${new Date().toISOString()} -> ${type || "INFO"} -> ${msg}`)
+const l = (msg: string, type?: string) => console.log(`${new Date().toISOString()} -> ${type || "INFO"} -> ${msg}`)
+const snooze = (ms: number) => new Promise(res => setTimeout(res, ms))
+
+type runfileConfigs = {
+    run: string,
+    autoPush: boolean,
+    autoPushInterval: number, // in sec
+    cmds: string[]
+}
+
+function configGit() {
+    execSync("git config --global user.email \"noemailforyou@lmao.com\"")
+    execSync("git config --global user.name \"Repl.it Auto Push\"")
+}
+
+async function parseRunfile(): Promise<runfileConfigs> {
+    const ret = { run: undefined, autoPush: false, autoPushInterval: undefined, cmds: [] }
+
+    for (const line of (await readFile(".runfile", 'utf-8')).split(/\r?\n/)) {
+        if (!line.startsWith('#') && line.length > 0) {
+            if (line.startsWith('@run.cmd=')) ret.run = line.replace('@run.cmd=', '')
+            else if (line.startsWith('@git.auto_push=')) ret.autoPush = line.replace('@git.auto_push=', '') == 'true' ? true : false
+            else if (line.startsWith('@git.auto_push_interval=')) ret.autoPushInterval = parseInt(line.replace('@git.auto_push_interval=', ''))
+            else ret.cmds.push(line)
+        }
+    }
+
+    if (ret.autoPushInterval == NaN) ret.autoPushInterval = 0
+    return ret
+}
+
+function upload(): Promise<number> {
+    return new Promise<number>(async (res, rej) => {
+        try {
+            const c = spawn('git', ['pull'])
+            await new Promise(res => {
+                c.on('exit', () => res(0))
+            })
+
+            const child = spawn('git', ['add', '-A'])
+            child.on('exit', code => {
+                if (code != 0) return rej(code)
+            })
+            await new Promise(res => {
+                child.on('exit', () => res(0))
+            })
+
+            const child2 = spawn('git', ['commit', '-m', 'Automatic commit'])
+            child2.on('exit', code => {
+                if (code != 0) return rej(code)
+            })
+            await new Promise(res => {
+                child2.on('exit', () => res(0))
+            })
+
+            const child3 = spawn('git', ['push', 'origin', '--force'])
+
+            child3.on('exit', code => {
+                if (code != 0) return rej(code)
+            })
+            await new Promise(res => {
+                child3.on('exit', () => res(0))
+            })
+            res(0)
+        } catch (err) {
+            rej(err)
+        }
+    })
+}
+
+async function initAutosaveLoop(interval: number) {
+    while (true) {
+        await snooze(interval)
+        if (process.env.VERBOSE == 'true') l("Auto-saving!", 'AUTOSAVE-DEBUG')
+
+        try {
+            await upload()
+        } catch (err) {
+            if (process.env.VERBOSE == 'true') l(`Error whilst autosaving: ${err.stack}`, 'ERROR')
+        }
+    }   
+}
 
 function clone(dir: string, repo_name: string, token?: string): Promise<number> {
     const uri = `git clone https://${"any"}:${token || "any"}@github.com/${repo_name}`
@@ -48,36 +129,59 @@ async function fsExists(file: string): Promise<boolean> {
 async function run(dir: string) {
     process.chdir(dir)
     if (await fsExists(".runfile")) {
-        for (const line of (await readFile(".runfile", 'utf-8')).split(/\r?\n/)) {
-            if (line.startsWith("RUN=")) {
-                const cmd = line.replace(/RUN=/, '')
-                if (process.env.VERBOSE == 'true') l(`> ${cmd}`, 'RUNFILE')
-                const proc = exec(cmd)
+        if (process.env.VERBOSE == 'true') l("Starting keepalive server...", 'KEEPALIVE')
+        const server = createServer((req, res) => {
+            res.writeHead(200)
+            res.end('{"status":"OK"}')
+        })
+        server.listen(8080)
+        if (process.env.VERBOSE == 'true') l("Keepalive server listening on port 8080!", 'KEEPALIVE')
 
-                l("Starting keepalive server...", 'KEEPALIVE')
-                const server = createServer((req, res) => {
-                    res.writeHead(200)
-                    res.end('{"status":"OK"}')
-                })
-                server.listen(8080)
-                l("Keepalive server listening on port 8080!", 'KEEPALIVE')
-
-                proc.stdout.on('data', data => process.stdout.write(data))
-                proc.stderr.on('data', data => process.stderr.write(data))
-
-                proc.on('exit', async code => {
-                    process.chdir("~")
-                    await rm(dir, { force: true, recursive: true })
-                    process.exit(code)
-                })
-            } else if (line.length > 0) {
-                if (process.env.VERBOSE == 'true') l(`> ${line}`, 'RUNFILE')
-                execSync(line)
-            }
+        const options = await parseRunfile()
+        
+        if (!options.run) {
+            if (process.env.VERBOSE == 'true') l(".runfile is missing run command. Nothing to do.\nRun command example: @run.cmd=echo \"Hello World!\"", 'WARN')
+            process.exit(1)
+        } else if (options.autoPush && !(options.autoPushInterval || options.autoPushInterval <= 0)) {
+            if (process.env.VERBOSE == 'true') l(".runfile appears to have autopush on, but the interval is either 0 or lower. Please make sure your runfile has an interval (i.e. @git.auto_push_interval=60).\nSetting to default interval of 5 minutes.", 'WARN')
+            options.autoPushInterval = 300
         }
+
+        if (options.autoPush) configGit()
+        if (process.env.VERBOSE == 'true') l(`Auto push configs: {enabled=${options.autoPush}, interval=${options.autoPushInterval}}`)
+        options.autoPushInterval *= 1000
+
+        for (const cmd of options.cmds) {
+            if (process.env.VERBOSE == 'true') l(`> ${cmd}`, 'RUNFILE')
+            execSync(cmd)
+        }
+
+        if (process.env.VERBOSE == 'true') l(`> ${options.run}`, 'RUNFILE')
+        const proc = exec(options.run)
+        let died = false
+
+        proc.stdout.on('data', data => process.stdout.write(data))
+        proc.stderr.on('data', data => process.stderr.write(data))
+
+        process.stdin.on('data', data => {
+            if (!died) {
+                try { proc.stdin.write(data) }
+                catch {}
+            }
+        })
+
+        proc.on('exit', async code => {
+            died = true
+
+            process.chdir("~")
+            await rm(dir, { force: true, recursive: true })
+            process.exit(code)
+        })
+
+        if (options.autoPush) initAutosaveLoop(options.autoPushInterval)
     } else {
-        l(".runfile does not exist.", 'ERROR')
-        l("Nothing to do.", 'ERROR')
+        if (process.env.VERBOSE == 'true') l(".runfile does not exist.", 'ERROR')
+        if (process.env.VERBOSE == 'true') l("Nothing to do.", 'ERROR')
         process.exit(1)
     }
 }
@@ -92,7 +196,7 @@ async function start() {
         l(`An error has occurred. Error:\n${err.stack}`, 'ERROR')
     }
 
-    l("Downloading files...")
+    if (process.env.VERBOSE == 'true') l("Downloading files...")
     await clone(folder, process.env.REPO, process.env.ACCESS_TOKEN)
 
     l("Starting...")
@@ -102,11 +206,11 @@ async function start() {
 function check_env() {
     l("Initializing...")
     if (!process.env.REPO) {
-        l("The environment variable 'REPO' is missing. Please set it to a valid GitHub repository (i.e. username/repo-name) in Secrets.", 'FATAL')
+        if (process.env.VERBOSE == 'true') l("The environment variable 'REPO' is missing. Please set it to a valid GitHub repository (i.e. username/repo-name) in Secrets.", 'FATAL')
         process.exit(1)
     }
     if (!process.env.ACCESS_TOKEN) {
-        l("The environment variable 'ACCESS_TOKEN' is missing. You may not be able to access private repositories.", 'WARN')
+        if (process.env.VERBOSE == 'true') l("The environment variable 'ACCESS_TOKEN' is missing. You may not be able to access private repositories.", 'WARN')
     }
 }
 
