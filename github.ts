@@ -87,14 +87,22 @@ async function initAutosaveLoop(interval: number) {
     }   
 }
 
+/**
+ * Clone into a GitHub repo
+ * @param dir The directory to clone into
+ * @param repo_name The full name of the GitHub repository (name-here/repo-name-here)
+ * @param token The GitHub access token (if appliable)
+ * @returns A promise with the error code
+ */
 function clone(dir: string, repo_name: string, token?: string): Promise<number> {
-    const uri = `git clone https://${"any"}:${token || "any"}@github.com/${repo_name}`
+    const uri = `git clone https://any:${token || "any"}@github.com/${repo_name}`
 
     return new Promise<number>((res, rej) => {
         try {
-            const child = spawn('git', ['clone', `https://${"any"}:${token || "any"}@github.com/${repo_name}`, '.'])
+            const child = spawn('git', ['clone', `https://any:${token || "any"}@github.com/${repo_name}`, '.'])
             child.on('exit', code => {
                 if (code != 0) {
+                    // throw error if non-zero error code
                     rej(code)
                 } else {
                     res(code)
