@@ -1,16 +1,22 @@
 import { exec, execSync, spawn } from "child_process"
 import { randomUUID } from "crypto"
 import { access, mkdir, readFile, rm } from "fs/promises"
-import { tmpdir } from "os"
+import { homedir, tmpdir } from "os"
 import { createServer } from "http"
+import { chdir } from "process"
 
 const l = (msg: string, type?: string) => console.log(`${new Date().toISOString()} -> ${type || "INFO"} -> ${msg}`)
 const snooze = (ms: number) => new Promise(res => setTimeout(res, ms))
+
+let github_token: string | undefined
+let github_repo: string
+let currentTmpDir: string
 
 type runfileConfigs = {
     run: string,
     autoPush: boolean,
     autoPushInterval: number, // in sec
+    startKeepaliveWebserver: boolean,
     cmds: string[]
 }
 
@@ -20,13 +26,17 @@ function configGit() {
 }
 
 async function parseRunfile(): Promise<runfileConfigs> {
-    const ret = { run: undefined, autoPush: false, autoPushInterval: undefined, cmds: [] }
+    const ret = { run: undefined, autoPush: false, autoPushInterval: undefined, cmds: [], startKeepaliveWebserver: false }
 
     for (const line of (await readFile(".runfile", 'utf-8')).split(/\r?\n/)) {
         if (!line.startsWith('#') && line.length > 0) {
             if (line.startsWith('@run.cmd=')) ret.run = line.replace('@run.cmd=', '')
             else if (line.startsWith('@git.auto_push=')) ret.autoPush = line.replace('@git.auto_push=', '') == 'true' ? true : false
             else if (line.startsWith('@git.auto_push_interval=')) ret.autoPushInterval = parseInt(line.replace('@git.auto_push_interval=', ''))
+            else if (line.startsWith('@run.keepalive_http_server=')) {
+                const bool = line.replace('@run.keepalive_http_server=', '') == "true" ? true : false
+                ret.startKeepaliveWebserver = bool
+            }
             else ret.cmds.push(line)
         }
     }
@@ -38,29 +48,20 @@ async function parseRunfile(): Promise<runfileConfigs> {
 function upload(): Promise<number> {
     return new Promise<number>(async (res, rej) => {
         try {
-            const c = spawn('git', ['pull'])
+            const c = spawn('git', ['pull', `https://any:${github_token || "any"}@github.com/${github_repo}`, 'main'])
             await new Promise(res => {
                 c.on('exit', () => res(0))
             })
 
-            const child = spawn('git', ['add', '-A'])
-            child.on('exit', code => {
-                if (code != 0) return rej(code)
-            })
-            await new Promise(res => {
-                child.on('exit', () => res(0))
-            })
-
-            const child2 = spawn('git', ['commit', '-m', 'Automatic commit'])
+            const child2 = spawn('git', ['commit', '-a', '-m', 'Automatic commit'])
             child2.on('exit', code => {
-                if (code != 0) return rej(code)
+                if (code != 0 && code != 1) return rej(code)
             })
             await new Promise(res => {
                 child2.on('exit', () => res(0))
             })
 
             const child3 = spawn('git', ['push', 'origin', '--force'])
-
             child3.on('exit', code => {
                 if (code != 0) return rej(code)
             })
@@ -120,6 +121,7 @@ function clone(dir: string, repo_name: string, token?: string): Promise<number> 
  */
 async function init_environment(): Promise<string> {
     const folder_name = `runtime-${randomUUID()}`, folder = `${tmpdir()}/${folder_name}`
+    currentTmpDir = folder
     await mkdir(folder)
     process.chdir(folder)
     return folder
@@ -137,13 +139,6 @@ async function fsExists(file: string): Promise<boolean> {
 async function run(dir: string) {
     process.chdir(dir)
     if (await fsExists(".runfile")) {
-        if (process.env.VERBOSE == 'true') l("Starting keepalive server...", 'KEEPALIVE')
-        const server = createServer((req, res) => {
-            res.writeHead(200)
-            res.end('{"status":"OK"}')
-        })
-        server.listen(8080)
-        if (process.env.VERBOSE == 'true') l("Keepalive server listening on port 8080!", 'KEEPALIVE')
 
         const options = await parseRunfile()
         
@@ -153,6 +148,21 @@ async function run(dir: string) {
         } else if (options.autoPush && !(options.autoPushInterval || options.autoPushInterval <= 0)) {
             if (process.env.VERBOSE == 'true') l(".runfile appears to have autopush on, but the interval is either 0 or lower. Please make sure your runfile has an interval (i.e. @git.auto_push_interval=60).\nSetting to default interval of 5 minutes.", 'WARN')
             options.autoPushInterval = 300
+        }
+
+        if (options.autoPush && !process.env.ACCESS_TOKEN) {
+            if (process.env.VERBOSE == 'true') l("Autopush for Git was enabled, but a GitHub access token was not passed. To enable this feature, please set the access token as the environment variable ACCESS_TOKEN.", 'GIT')
+            process.exit(1)
+        }
+
+        if (options.startKeepaliveWebserver) {
+            if (process.env.VERBOSE == 'true') l("Starting keepalive server...", 'KEEPALIVE')
+            const server = createServer((req, res) => {
+                res.writeHead(200)
+                res.end('{"status":"OK"}')
+            })
+            server.listen(8080)
+            if (process.env.VERBOSE == 'true') l("Keepalive server listening on port 8080!", 'KEEPALIVE')
         }
 
         if (options.autoPush) configGit()
@@ -180,8 +190,9 @@ async function run(dir: string) {
 
         proc.on('exit', async code => {
             died = true
+            currentTmpDir = undefined
 
-            process.chdir("~")
+            process.chdir(homedir())
             await rm(dir, { force: true, recursive: true })
             process.exit(code)
         })
@@ -206,9 +217,13 @@ async function start() {
 
     if (process.env.VERBOSE == 'true') l("Downloading files...")
     await clone(folder, process.env.REPO, process.env.ACCESS_TOKEN)
+        .catch((err) => {
+            if (process.env.VERBOSE == 'true') l("Failed to download files! Please make sure Git is correctly set up, and try again.", "GIT")
+            process.exit(1)
+        })
 
     l("Starting...")
-    await run (folder)
+    await run(folder)
 }
 
 function check_env() {
@@ -217,10 +232,35 @@ function check_env() {
         if (process.env.VERBOSE == 'true') l("The environment variable 'REPO' is missing. Please set it to a valid GitHub repository (i.e. username/repo-name) in Secrets.", 'FATAL')
         process.exit(1)
     }
+    github_repo = process.env.REPO
     if (!process.env.ACCESS_TOKEN) {
         if (process.env.VERBOSE == 'true') l("The environment variable 'ACCESS_TOKEN' is missing. You may not be able to access private repositories.", 'WARN')
+    } else {
+        github_token = process.env.ACCESS_TOKEN
     }
 }
+
+const exitCallback = async (code?: number) => {
+    let exitCode: number
+
+    if (!code) exitCode = 0
+    else if (typeof code != 'number') exitCode = 0
+
+    if (currentTmpDir) {
+        process.chdir(homedir())
+        await rm(currentTmpDir, { force: true, recursive: true })
+    }
+    process.exit(exitCode)
+}
+
+// bind to exit
+process.on('exit', exitCallback)
+process.on('SIGINT', exitCallback)
+process.on('SIGTERM', exitCallback)
+process.on('SIGUSR1', exitCallback)
+process.on('SIGUSR2', exitCallback)
+process.on('uncaughtException', exitCallback)
+process.on('unhandledRejection', exitCallback)
 
 check_env()
 await start()
