@@ -48,30 +48,28 @@ async function parseRunfile(): Promise<runfileConfigs> {
 function upload(): Promise<number> {
     return new Promise<number>(async (res, rej) => {
         try {
-            const c = spawn('git', ['pull', `https://any:${github_token || "any"}@github.com/${github_repo}`, 'main'])
-            await new Promise(res => {
-                c.on('exit', () => res(0))
-            })
-
-            const child2 = spawn('git', ['commit', '-a', '-m', 'Automatic commit'])
-            child2.on('exit', code => {
-                if (code != 0 && code != 1) return rej(code)
-            })
-            await new Promise(res => {
-                child2.on('exit', () => res(0))
-            })
-
-            const child3 = spawn('git', ['push', 'origin', '--force'])
-            child3.on('exit', code => {
-                if (code != 0) return rej(code)
-            })
-            await new Promise(res => {
-                child3.on('exit', () => res(0))
-            })
+            try {
+                const proc = exec(`git pull https://any:${github_token || "any"}@github.com/${github_repo} master`)
+                await new Promise(res => proc.on('exit', res))
+            }
+            catch {}
+            try {
+                const proc = exec(`git add .`)
+                await new Promise(res => proc.on('exit', res))
+            }
+            catch {}
+            try {
+                const proc = exec(`git commit -a -m "Automatic commit"`)
+                await new Promise(res => proc.on('exit', res))
+            }
+            catch {}
+            try {
+                const proc = exec(`git push https://any:${github_token || "any"}@github.com/${github_repo} --force`)
+                await new Promise(res => proc.on('exit', res))
+            }
+            catch {}
             res(0)
-        } catch (err) {
-            rej(err)
-        }
+        } catch {}
     })
 }
 
