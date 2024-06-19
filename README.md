@@ -2,6 +2,9 @@
 A dependency-free Node.js project aimed at being an alternative to the paid Hacker Plan available on repl.it.  
 **Limitations to the original version do apply - check the below for more information!**
 
+## ARCHIVED
+As of 6/19/2024, Repl.it has removed what they call "legacy hosting" in favor of their paid Deoployments feature. As I no longer find any use in continuing this mini-project of mine, I have decided to archive and publicize this repository in hopes that others may find this useful on other similar platforms. *This project has been relicensed under the MIT license.*
+
 # Limitations
 - This project is made specifically for repl.it repls. In theory, this should work on any machine and OS with support for node.js and git but your milage may vary.
 - On-server/embedded databases (i.e. SQLite) do work, but data will not retain between relaunches. Check out [MongoDB Atlas](https://www.mongodb.com/cloud-1) for free database hosting.
